@@ -1,0 +1,557 @@
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { MapPin, Calendar, Utensils, Home, Smartphone, Instagram, Music, Star, Clock, Map as MapIcon } from 'lucide-react';
+
+// --- Constants ---
+const FESTIVAL_START_DATE = new Date('2025-06-20T00:00:00');
+
+const HEADLINERS = [
+  { day: 'Friday, June 20', artist: 'LEE RITENOUR BAND & RANDY BRECKER', time: '8:30 PM', venue: 'Kodak Hall at Eastman Theatre', featured: true },
+  { day: 'Saturday, June 21', artist: 'CHRISTONE "KINGFISH" INGRAM', time: '8:30 PM', venue: 'Kodak Hall at Eastman Theatre', featured: true },
+  { day: 'Monday, June 23', artist: 'JOHN OATES of Hall & Oates', time: '8:30 PM', venue: 'Kodak Hall at Eastman Theatre', featured: true },
+  { day: 'Tuesday, June 24', artist: 'SAMARA JOY', time: '8:30 PM', venue: 'Kodak Hall at Eastman Theatre', featured: false },
+  { day: 'Wednesday, June 25', artist: 'JOSS STONE', time: '8:30 PM', venue: 'Kodak Hall at Eastman Theatre', featured: true },
+  { day: 'Thursday, June 26', artist: 'SHEILA E. AND THE E-TRAIN', time: '8:30 PM', venue: 'Kodak Hall at Eastman Theatre', featured: false },
+  { day: 'Friday, June 27', artist: 'LAUFEY', time: '8:30 PM', venue: 'Kodak Hall at Eastman Theatre', featured: true },
+  { day: 'Saturday, June 28', artist: 'MAVIS STAPLES & DONELL JONES', time: '8:30 PM', venue: 'Kodak Hall at Eastman Theatre', featured: true },
+];
+
+const FREE_SHOWS = [
+  { day: 'Friday, June 20', artist: 'Yussef Dayes', venue: 'Gibbs Street Stage', time: '9:00 PM' },
+  { day: 'Saturday, June 21', artist: 'Los Lonely Boys', venue: 'Gibbs Street Stage', time: '9:00 PM' },
+  { day: 'Sunday, June 22', artist: 'Christone "Kingfish" Ingram', venue: 'Gibbs Street Stage', time: '9:00 PM' },
+  { day: 'Monday, June 23', artist: 'Cimafunk', venue: 'Gibbs Street Stage', time: '9:00 PM' },
+  { day: 'Tuesday, June 24', artist: 'Stanley Clarke Band', venue: 'Gibbs Street Stage', time: '9:00 PM' },
+  { day: 'Wednesday, June 25', artist: 'Taj Mahal Quartet', venue: 'Gibbs Street Stage', time: '9:00 PM' },
+  { day: 'Thursday, June 26', artist: 'Shiela E. and The E-Train', venue: 'Gibbs Street Stage', time: '9:00 PM' },
+  { day: 'Friday, June 27', artist: 'Laufey', venue: 'Gibbs Street Stage', time: '9:00 PM' },
+  { day: 'Saturday, June 28', artist: 'Mavis Staples', venue: 'Gibbs Street Stage', time: '9:00 PM' },
+];
+
+const VENDORS = [
+  { name: 'Abbott\'s Frozen Custard', type: 'Dessert', rating: 4.8 },
+  { name: 'Big Mozz', type: 'Snacks', rating: 4.5 },
+  { name: 'Caribbean Soul', type: 'Caribbean', rating: 4.7 },
+  { name: 'Cheesed & Confused', type: 'American', rating: 4.6 },
+  { name: 'Dukes Donuts', type: 'Dessert / Coffee', rating: 4.4 },
+  { name: 'Effortlessly Healthy', type: 'Healthy Options', rating: 4.3 },
+  { name: 'Hava Restaurant', type: 'Mediterranean', rating: 4.9 },
+  { name: 'Nancy\'s Fried Dough', type: 'Classic Fair Food', rating: 4.2 },
+  { name: 'Rob\'s Kabobs', type: 'American', rating: 4.5 },
+  { name: 'Wraps on Wheels', type: 'Wraps & Sandwiches', rating: 4.4 }
+];
+
+// --- Custom Hooks ---
+const useCountdown = (targetDate) => {
+  const [timeLeft, setTimeLeft] = useState('');
+
+  useEffect(() => {
+    const updateCountdown = () => {
+      const now = new Date();
+      const difference = targetDate - now;
+
+      if (difference > 0) {
+        const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
+        const minutes = Math.floor((difference / 1000 / 60) % 60);
+        const seconds = Math.floor((difference / 1000) % 60);
+        setTimeLeft(`${days}d ${hours}h ${minutes}m ${seconds}s`);
+      } else {
+        setTimeLeft('🎵 Festival is LIVE! 🎵');
+      }
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [targetDate]);
+
+  return timeLeft;
+};
+
+// --- Optimized Helper Components ---
+const TabButton = React.memo(({ active, onClick, children, icon: Icon }) => (
+  <button
+    onClick={onClick}
+    className={`flex-1 flex flex-col items-center justify-center p-2 sm:p-3 text-xs sm:text-sm font-medium transition-all duration-200 ease-in-out border-b-4 ${
+      active
+        ? 'text-purple-600 border-purple-500 bg-purple-50'
+        : 'text-gray-500 border-transparent hover:bg-gray-100 hover:text-purple-600 hover:border-purple-200'
+    }`}
+    aria-pressed={active}
+  >
+    <Icon className="mb-1 h-4 w-4 sm:h-5 sm:w-5" />
+    <span className="hidden sm:inline">{children}</span>
+  </button>
+));
+
+const Card = React.memo(({ children, className = '', hover = true }) => (
+  <div className={`bg-white rounded-xl shadow-md overflow-hidden p-4 sm:p-6 ${hover ? 'hover:shadow-lg' : ''} transition-shadow duration-200 ${className}`}>
+    {children}
+  </div>
+));
+
+const Pill = React.memo(({ children, className = '', variant = 'purple' }) => {
+  const variants = {
+    purple: 'bg-purple-100 text-purple-800',
+    indigo: 'bg-indigo-100 text-indigo-800',
+    green: 'bg-green-100 text-green-800',
+    yellow: 'bg-yellow-100 text-yellow-800'
+  };
+  
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${variants[variant]} ${className}`}>
+      {children}
+    </span>
+  );
+});
+
+const QuickLink = React.memo(({ href, icon: Icon, title, description, color = 'purple' }) => (
+  <a 
+    href={href} 
+    target="_blank" 
+    rel="noopener noreferrer" 
+    className={`group block p-4 sm:p-6 bg-white rounded-xl shadow-md hover:bg-${color}-50 transition-all duration-200 hover:shadow-lg hover:scale-105`}
+  >
+    <div className="flex items-center">
+      <Icon className={`text-${color}-500 h-6 w-6 sm:h-8 sm:w-8 mr-3 sm:mr-4 group-hover:scale-110 transition-transform duration-200`}/>
+      <div>
+        <h3 className="font-bold text-base sm:text-lg text-gray-800 group-hover:text-gray-900">{title}</h3>
+        <p className="text-gray-600 text-sm group-hover:text-gray-700">{description}</p>
+      </div>
+    </div>
+  </a>
+));
+
+// --- Page Components ---
+const HomePage = React.memo(() => {
+  const timeLeft = useCountdown(FESTIVAL_START_DATE);
+  const featuredShows = useMemo(() => HEADLINERS.filter(show => show.featured).slice(0, 3), []);
+
+  return (
+    <div className="space-y-6">
+      {/* Hero Section */}
+      <div className="bg-gradient-to-br from-purple-600 via-indigo-600 to-purple-700 text-white p-6 sm:p-8 rounded-xl shadow-2xl relative overflow-hidden">
+        <div className="absolute inset-0 bg-black/10"></div>
+        <div className="relative z-10">
+          <div className="flex items-center justify-center mb-4">
+            <Music className="h-8 w-8 mr-3 animate-pulse" />
+            <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight">Rochester Jazz Festival</h1>
+          </div>
+          <p className="text-lg sm:text-xl text-purple-200 text-center">Your Ultimate Festival Companion</p>
+        </div>
+      </div>
+      
+      {/* Countdown */}
+      <Card className="text-center bg-gradient-to-r from-gray-50 to-gray-100">
+        <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center justify-center">
+          <Clock className="mr-3 text-purple-500" />
+          Festival Countdown
+        </h2>
+        <div className="text-3xl sm:text-4xl font-mono bg-white text-gray-900 rounded-lg p-4 inline-block shadow-inner border-2 border-purple-100">
+          {timeLeft || 'Loading...'}
+        </div>
+        <p className="text-gray-500 mt-3 text-sm">Until the music begins! 🎺</p>
+      </Card>
+
+      {/* Featured Shows Preview */}
+      <div>
+        <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+          <Star className="mr-3 text-yellow-500" />
+          Featured Headliners
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {featuredShows.map((show, index) => (
+            <Card key={index} className="text-center border-l-4 border-purple-400">
+              <p className="font-bold text-lg text-purple-700 mb-2">{show.artist}</p>
+              <Pill variant="purple" className="mb-2">{show.day.split(',')[0]}</Pill>
+              <p className="text-sm text-gray-600">{show.time}</p>
+            </Card>
+          ))}
+        </div>
+      </div>
+      
+      {/* Quick Links */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <QuickLink
+          href="https://rochesterjazz.com/"
+          icon={Home}
+          title="Official Website"
+          description="Latest news, tickets & updates"
+          color="purple"
+        />
+        <QuickLink
+          href="https://www.instagram.com/rochesterintjazzfest/"
+          icon={Instagram}
+          title="Instagram"
+          description="Live photos & stories"
+          color="indigo"
+        />
+      </div>
+    </div>
+  );
+});
+
+const SchedulePage = React.memo(() => {
+  const [filter, setFilter] = useState('all');
+  
+  const filteredShows = useMemo(() => {
+    if (filter === 'featured') return HEADLINERS.filter(show => show.featured);
+    return HEADLINERS;
+  }, [filter]);
+
+  return (
+    <div className="space-y-8">
+      {/* Filter Controls */}
+      <div className="flex justify-center space-x-4">
+        <button
+          onClick={() => setFilter('all')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            filter === 'all' ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+          }`}
+        >
+          All Headliners
+        </button>
+        <button
+          onClick={() => setFilter('featured')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            filter === 'featured' ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+          }`}
+        >
+          Featured Only
+        </button>
+      </div>
+
+      {/* Headliner Schedule */}
+      <div>
+        <h2 className="text-3xl font-bold text-gray-800 mb-4 flex items-center">
+          <Calendar className="mr-3 text-purple-500"/> 
+          Headliner Schedule
+        </h2>
+        <p className="text-gray-600 mb-6">Premium shows at Kodak Hall. Check official site for tickets & updates! 🎫</p>
+        
+        <div className="space-y-4">
+          {filteredShows.map((show, index) => (
+            <Card key={index} className="hover:shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                <div className="mb-3 sm:mb-0 flex-1">
+                  <div className="flex items-center mb-2">
+                    <p className="font-bold text-xl text-purple-700">{show.artist}</p>
+                    {show.featured && <Star className="ml-2 h-5 w-5 text-yellow-500 fill-current" />}
+                  </div>
+                  <p className="text-gray-500 flex items-center">
+                    <MapIcon className="h-4 w-4 mr-1" />
+                    {show.venue}
+                  </p>
+                </div>
+                <div className="flex items-center sm:flex-col sm:items-end sm:text-right">
+                  <Pill variant="purple" className="mr-2 sm:mr-0 sm:mb-2">{show.day}</Pill>
+                  <p className="font-semibold text-gray-700 flex items-center">
+                    <Clock className="h-4 w-4 mr-1" />
+                    {show.time}
+                  </p>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* Free Shows */}
+      <div>
+        <h2 className="text-3xl font-bold text-gray-800 mb-4 flex items-center">
+          <Music className="mr-3 text-indigo-500"/> 
+          Free Shows Highlights
+        </h2>
+        <p className="text-gray-600 mb-6">Amazing free performances! Full schedule has 100+ shows 🎶</p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {FREE_SHOWS.slice(0, 6).map((show, index) => (
+            <Card key={index} className="border-l-4 border-indigo-400 hover:shadow-lg">
+              <p className="font-bold text-lg text-indigo-700 mb-2">{show.artist}</p>
+              <p className="text-gray-500 text-sm mb-2 flex items-center">
+                <MapIcon className="h-4 w-4 mr-1" />
+                {show.venue}
+              </p>
+              <div className="flex justify-between items-center">
+                <Pill variant="indigo">{show.day.split(',')[0]}</Pill>
+                <p className="font-medium text-gray-700 flex items-center text-sm">
+                  <Clock className="h-4 w-4 mr-1" />
+                  {show.time}
+                </p>
+              </div>
+            </Card>
+          ))}
+        </div>
+      </div>
+      
+      <a 
+        href="https://rochesterjazz.com/schedule/" 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className="inline-block w-full text-center bg-gradient-to-r from-green-500 to-green-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:from-green-600 hover:to-green-700 transition-all duration-200 hover:scale-105"
+      >
+        🎵 View Complete Official Schedule
+      </a>
+    </div>
+  );
+});
+
+const MapPage = React.memo(() => (
+  <div className="space-y-6 text-center">
+    <h2 className="text-3xl font-bold text-gray-800 mb-2 flex items-center justify-center">
+      <MapPin className="mr-3 text-purple-500"/> 
+      Festival Navigation 🗺️
+    </h2>
+    <p className="text-gray-600 max-w-2xl mx-auto">Get around like a pro! Interactive map shows stages, food, restrooms & more.</p>
+    
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <Card className="text-center">
+        <h3 className="text-xl font-bold text-gray-800 mb-4">📱 Interactive Map</h3>
+        <p className="text-gray-600 mb-4">Live updates, GPS navigation, and real-time info</p>
+        <a 
+          href="https://rochesterjazz.com/map" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="inline-block bg-purple-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-purple-700 transition-all duration-200 hover:scale-105"
+        >
+          Open Interactive Map
+        </a>
+      </Card>
+
+      <Card className="text-center">
+        <h3 className="text-xl font-bold text-gray-800 mb-4">📄 PDF Map</h3>
+        <p className="text-gray-600 mb-4">Download for offline reference</p>
+        <a 
+          href="https://rochesterjazz.com/wp-content/uploads/2025/04/MAP_2025_v3.pdf" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="inline-block bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-indigo-700 transition-all duration-200 hover:scale-105"
+        >
+          Download PDF
+        </a>
+      </Card>
+    </div>
+
+    <Card>
+      <h3 className="text-xl font-bold text-gray-800 mb-4">🎯 Quick Venue Guide</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+        <div>
+          <h4 className="font-semibold text-purple-700 mb-2">🎭 Main Venues</h4>
+          <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside">
+            <li>Kodak Hall - Premium shows</li>
+            <li>Gibbs Street Stage - Free shows</li>
+            <li>East End District - Multiple stages</li>
+          </ul>
+        </div>
+        <div>
+          <h4 className="font-semibold text-indigo-700 mb-2">🍕 Essentials</h4>
+          <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside">
+            <li>Food courts throughout</li>
+            <li>ATMs at major intersections</li>
+            <li>Restrooms marked on map</li>
+          </ul>
+        </div>
+      </div>
+    </Card>
+  </div>
+));
+
+const FoodPage = React.memo(() => {
+  const [sortBy, setSortBy] = useState('name');
+  
+  const sortedVendors = useMemo(() => {
+    return [...VENDORS].sort((a, b) => {
+      if (sortBy === 'rating') return b.rating - a.rating;
+      if (sortBy === 'type') return a.type.localeCompare(b.type);
+      return a.name.localeCompare(b.name);
+    });
+  }, [sortBy]);
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-3xl font-bold text-gray-800 mb-2 flex items-center">
+        <Utensils className="mr-3 text-purple-500"/> 
+        Food & Drinks 🍴
+      </h2>
+      <p className="text-gray-600 mb-4">Feast your way through the festival! From local favorites to international flavors.</p>
+      
+      {/* Sort Controls */}
+      <div className="flex flex-wrap gap-2 justify-center">
+        {['name', 'rating', 'type'].map(option => (
+          <button
+            key={option}
+            onClick={() => setSortBy(option)}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors capitalize ${
+              sortBy === option ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            Sort by {option}
+          </button>
+        ))}
+      </div>
+
+      {/* Top Rated Section */}
+      <Card className="bg-gradient-to-r from-yellow-50 to-orange-50 border-l-4 border-yellow-400">
+        <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+          <Star className="mr-2 text-yellow-500 fill-current" />
+          🏆 Top Rated Vendors
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {VENDORS.filter(v => v.rating >= 4.7).map((vendor, index) => (
+            <div key={index} className="text-center p-3 bg-white rounded-lg shadow-sm">
+              <p className="font-bold text-purple-800">{vendor.name}</p>
+              <Pill variant="yellow" className="mt-1 mb-2">{vendor.type}</Pill>
+              <div className="flex items-center justify-center">
+                <Star className="h-4 w-4 text-yellow-500 fill-current mr-1" />
+                <span className="text-sm font-medium">{vendor.rating}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+      
+      {/* All Vendors Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {sortedVendors.map((vendor, index) => (
+          <Card key={index} className="text-center hover:shadow-lg transition-all duration-200 hover:scale-105">
+            <h3 className="text-lg font-bold text-purple-800 mb-2">{vendor.name}</h3>
+            <Pill variant="purple" className="mb-3">{vendor.type}</Pill>
+            <div className="flex items-center justify-center">
+              <Star className="h-4 w-4 text-yellow-500 fill-current mr-1" />
+              <span className="text-sm font-medium text-gray-700">{vendor.rating}/5</span>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      <a 
+        href="https://rochesterjazz.com/food-drinks/" 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className="inline-block w-full text-center bg-gradient-to-r from-green-500 to-green-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:from-green-600 hover:to-green-700 transition-all duration-200 hover:scale-105"
+      >
+        🍽️ Explore All Food Vendors
+      </a>
+    </div>
+  );
+});
+
+const OfficialAppPage = React.memo(() => (
+  <div className="text-center">
+    <Card className="max-w-2xl mx-auto">
+      <div className="mb-6">
+        <Smartphone className="mx-auto h-16 w-16 text-purple-500 mb-4 animate-bounce" />
+        <h2 className="text-3xl font-bold text-gray-800 mb-2">📱 Get the Official App</h2>
+        <p className="text-gray-600 mb-6">The ultimate festival experience in your pocket!</p>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className="text-left p-4 bg-purple-50 rounded-lg">
+          <h3 className="font-bold text-purple-800 mb-2">🎵 Features</h3>
+          <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
+            <li>Live schedule updates</li>
+            <li>Push notifications</li>
+            <li>Interactive map</li>
+            <li>Artist info & bios</li>
+          </ul>
+        </div>
+        <div className="text-left p-4 bg-indigo-50 rounded-lg">
+          <h3 className="font-bold text-indigo-800 mb-2">🎁 Exclusive</h3>
+          <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
+            <li>Special offers</li>
+            <li>Behind-the-scenes content</li>
+            <li>VIP notifications</li>
+            <li>Photo contests</li>
+          </ul>
+        </div>
+      </div>
+      
+      <a 
+        href="https://rochesterjazz.com/app/" 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className="inline-block bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold py-4 px-8 rounded-lg shadow-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-200 hover:scale-105"
+      >
+        📲 Download Official App
+      </a>
+      <div className="mt-6 text-sm text-gray-500">
+        <p>Available on iOS & Android • Free Download</p>
+      </div>
+    </Card>
+  </div>
+));
+
+// --- Main App Component ---
+export default function App() {
+  const [activeTab, setActiveTab] = useState('home');
+
+  const handleTabChange = useCallback((tab) => {
+    setActiveTab(tab);
+  }, []);
+
+  const renderContent = useMemo(() => {
+    const components = {
+      'schedule': SchedulePage,
+      'map': MapPage,
+      'food': FoodPage,
+      'official-app': OfficialAppPage,
+      'home': HomePage
+    };
+    
+    const Component = components[activeTab] || HomePage;
+    return <Component />;
+  }, [activeTab]);
+
+  return (
+    <div className="antialiased bg-gradient-to-br from-gray-50 to-purple-50 font-sans text-gray-700 min-h-screen">
+       <style>
+        {`
+          @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          .animate-fadeIn {
+            animation: fadeIn 0.5s ease-in-out forwards;
+          }
+        `}
+      </style>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+        
+        {/* Header */}
+        <header className="text-center mb-6 sm:mb-8">
+          <div className="inline-flex items-center group">
+            <div className="relative">
+              <Music className="h-10 w-10 sm:h-12 sm:w-12 text-purple-600 mr-3 group-hover:animate-pulse" />
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping"></div>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 tracking-wider">
+              Jazz Fest Companion
+            </h1>
+          </div>
+          <p className="text-sm text-gray-500 mt-2">Unofficial • Optimized • Always Updated</p>
+        </header>
+
+        {/* Navigation */}
+        <nav className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg flex mb-6 sm:mb-8 sticky top-2 z-20">
+          <TabButton active={activeTab === 'home'} onClick={() => handleTabChange('home')} icon={Home}>Home</TabButton>
+          <TabButton active={activeTab === 'schedule'} onClick={() => handleTabChange('schedule')} icon={Calendar}>Schedule</TabButton>
+          <TabButton active={activeTab === 'map'} onClick={() => handleTabChange('map')} icon={MapPin}>Map</TabButton>
+          <TabButton active={activeTab === 'food'} onClick={() => handleTabChange('food')} icon={Utensils}>Food</TabButton>
+          <TabButton active={activeTab === 'official-app'} onClick={() => handleTabChange('official-app')} icon={Smartphone}>App</TabButton>
+        </nav>
+
+        {/* Content */}
+        <main className="animate-fadeIn">
+          {renderContent}
+        </main>
+
+        {/* Footer */}
+        <footer className="text-center mt-12 text-xs text-gray-500">
+            <p>&copy; {new Date().getFullYear()} Jazz Fest Companion. For informational purposes only.</p>
+            <p className="mt-1">This is an unofficial guide. All information should be verified on the official website. All trademarks are the property of their respective owners.</p>
+        </footer>
+
+      </div>
+    </div>
+  );
+}
